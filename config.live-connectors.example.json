@@ -1,0 +1,67 @@
+{
+  "default_connector": "paper",
+  "connectors": {
+    "paper": {
+      "enabled": true,
+      "mode": "paper",
+      "integration_enabled": true,
+      "credentials_ready": true
+    },
+    "oanda": {
+      "enabled": true,
+      "mode": "live",
+      "integration_enabled": true,
+      "credentials_ready": false,
+      "environment": "practice",
+      "account_id": "YOUR_OANDA_ACCOUNT_ID",
+      "access_token": "YOUR_OANDA_PERSONAL_ACCESS_TOKEN"
+    },
+    "ctrader": {
+      "enabled": true,
+      "mode": "live",
+      "integration_enabled": true,
+      "credentials_ready": false,
+      "environment": "demo",
+      "client_id": "YOUR_CTRADER_CLIENT_ID",
+      "client_secret": "YOUR_CTRADER_CLIENT_SECRET",
+      "access_token": "YOUR_CTRADER_ACCESS_TOKEN"
+    },
+    "metatrader5": {
+      "enabled": true,
+      "mode": "demo",
+      "integration_enabled": true,
+      "credentials_ready": false,
+      "terminal_path": "C:\\Program Files\\MetaTrader 5\\terminal64.exe",
+      "login": 0,
+      "password": "YOUR_MT5_PASSWORD",
+      "server": "YOUR_BROKER_SERVER",
+      "risk": {
+        "max_risk_per_trade_pct": 0.25,
+        "max_daily_loss_pct": 1.0,
+        "max_spread_points": 30,
+        "stop_loss_pct": 0.35,
+        "take_profit_pct": 1.2,
+        "allow_live_trading": false
+      }
+    },
+    "metatrader4": {
+      "enabled": true,
+      "mode": "live",
+      "integration_enabled": true,
+      "credentials_ready": false,
+      "terminal_path": "C:\\Program Files (x86)\\MetaTrader 4\\terminal.exe",
+      "login": 0,
+      "password": "YOUR_MT4_PASSWORD",
+      "server": "YOUR_MT4_BROKER_SERVER"
+    },
+    "ibkr": {
+      "enabled": true,
+      "mode": "live",
+      "integration_enabled": true,
+      "credentials_ready": false,
+      "gateway_url": "https://localhost:5000",
+      "account_id": "YOUR_IBKR_ACCOUNT_ID",
+      "oauth_enabled": false
+    }
+  }
+}

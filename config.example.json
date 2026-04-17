@@ -1,0 +1,19 @@
+{
+  "account_currency": "USD",
+  "starting_balance": 10000.0,
+  "risk": {
+    "risk_per_trade_pct": 0.25,
+    "max_total_exposure_pct": 5.0,
+    "max_open_positions": 3,
+    "max_spread": 0.00025,
+    "default_stop_loss_pct": 0.35,
+    "default_take_profit_pct": 1.2,
+    "min_confidence": 0.55
+  },
+  "strategy": {
+    "fast_period": 5,
+    "slow_period": 12,
+    "volatility_lookback": 8,
+    "min_volatility_pct": 0.03
+  }
+}

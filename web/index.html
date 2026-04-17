@@ -104,6 +104,24 @@
         <article class="panel">
           <div class="panel-head">
             <div>
+              <p class="eyebrow">Backend</p>
+              <h2>Bridge Status</h2>
+            </div>
+          </div>
+          <label class="field">
+            <span>Backend URL</span>
+            <input id="backendUrl" type="text" value="http://127.0.0.1:8787" />
+          </label>
+          <div class="action-row">
+            <button class="ghost-button" id="checkBackend" type="button">Check Backend</button>
+            <button class="ghost-button" id="submitSignal" type="button">Send Sample Trade</button>
+          </div>
+          <div class="log-list" id="backendStatus"></div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-head">
+            <div>
               <p class="eyebrow">Execution Log</p>
               <h2>Recent Activity</h2>
             </div>

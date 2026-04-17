@@ -111,6 +111,7 @@ body {
   padding: 14px 18px;
   background: var(--ink);
   color: white;
+  width: 100%;
 }
 
 .grid {

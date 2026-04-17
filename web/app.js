@@ -1,5 +1,6 @@
 (function () {
   const stateKey = "atlas-fx-bot-state";
+  const backendUrlKey = "atlas-fx-backend-url";
   const initialState = {
     connector: "Universal Paper Bridge",
     running: false,
@@ -34,13 +35,18 @@
     netPnl: document.getElementById("netPnl"),
     tickerList: document.getElementById("tickerList"),
     connectorList: document.getElementById("connectorList"),
-    activityLog: document.getElementById("activityLog")
+    activityLog: document.getElementById("activityLog"),
+    backendUrl: document.getElementById("backendUrl"),
+    checkBackend: document.getElementById("checkBackend"),
+    submitSignal: document.getElementById("submitSignal"),
+    backendStatus: document.getElementById("backendStatus")
   };
   const storage = createStorage();
 
   let state = loadState();
   let timerId = null;
   const shouldAutoStart = window.location.hash === "#start";
+  let backendSnapshot = { status: "unknown", details: "Not checked yet." };
 
   if (Object.values(ui).some((element) => !element)) {
     throw new Error("Atlas FX Bot UI failed to initialize because required elements are missing.");
@@ -68,6 +74,12 @@
         },
         set(value) {
           window.localStorage.setItem(stateKey, value);
+        },
+        getBackendUrl() {
+          return window.localStorage.getItem(backendUrlKey);
+        },
+        setBackendUrl(value) {
+          window.localStorage.setItem(backendUrlKey, value);
         }
       };
     } catch (_error) {
@@ -77,6 +89,12 @@
         },
         set(value) {
           memoryState = value;
+        },
+        getBackendUrl() {
+          return null;
+        },
+        setBackendUrl(_value) {
+          return;
         }
       };
     }
@@ -202,6 +220,16 @@
     storage.set(JSON.stringify(state));
   }
 
+  function loadBackendUrl() {
+    return storage.getBackendUrl ? storage.getBackendUrl() : null;
+  }
+
+  function saveBackendUrl(url) {
+    if (storage.setBackendUrl) {
+      storage.setBackendUrl(url);
+    }
+  }
+
   function formatMoney(value) {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
@@ -221,6 +249,88 @@
       timestamp: new Date().toISOString()
     });
     state.logs = state.logs.slice(0, 12);
+  }
+
+  async function checkBackend() {
+    const baseUrl = ui.backendUrl.value.trim().replace(/\/+$/, "");
+    if (!baseUrl) {
+      backendSnapshot = { status: "error", details: "Enter a backend URL first." };
+      render();
+      return;
+    }
+
+    saveBackendUrl(baseUrl);
+    try {
+      const response = await fetch(`${baseUrl}/api/status`);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      const payload = await response.json();
+      backendSnapshot = {
+        status: "online",
+        details: `Brain: ${payload.default_brain} | MT5 terminal: ${payload.mt5.terminal_exists} | Approval: ${payload.manual_approval}`
+      };
+      addLog("system", "Backend connection successful.");
+    } catch (error) {
+      backendSnapshot = {
+        status: "offline",
+        details: `Backend request failed: ${error.message}`
+      };
+      addLog("system", "Backend connection failed.");
+    }
+    saveState();
+    render();
+  }
+
+  async function submitSampleTrade() {
+    const baseUrl = ui.backendUrl.value.trim().replace(/\/+$/, "");
+    if (!baseUrl) {
+      backendSnapshot = { status: "error", details: "Enter a backend URL first." };
+      render();
+      return;
+    }
+
+    const pair = Object.keys(state.pairs)[0];
+    const market = state.pairs[pair];
+    const payload = {
+      provider: "rules",
+      snapshot: {
+        symbol: pair.replace("/", ""),
+        bid: market.price - (pair === "USD/JPY" ? 0.01 : 0.0001),
+        ask: market.price + (pair === "USD/JPY" ? 0.01 : 0.0001),
+        spread_points: pair === "USD/JPY" ? 15 : 12,
+        ema_fast: average(market.history.slice(-3)),
+        ema_slow: average(market.history.slice(-5)),
+        rsi: 48,
+        source: "frontend-sample"
+      }
+    };
+
+    saveBackendUrl(baseUrl);
+    try {
+      const response = await fetch(`${baseUrl}/api/trades/submit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      const result = await response.json();
+      backendSnapshot = {
+        status: "online",
+        details: `Trade submit status: ${result.status}`
+      };
+      addLog("system", `Backend trade submit result: ${result.status}.`);
+    } catch (error) {
+      backendSnapshot = {
+        status: "offline",
+        details: `Trade submit failed: ${error.message}`
+      };
+      addLog("system", "Backend trade submit failed.");
+    }
+    saveState();
+    render();
   }
 
   function updateWallet(amountDelta, action) {
@@ -460,6 +570,19 @@
     });
   }
 
+  function renderBackendStatus() {
+    ui.backendStatus.innerHTML = "";
+    const row = document.createElement("div");
+    row.className = "log-item";
+    const title = document.createElement("strong");
+    title.textContent = `Status: ${backendSnapshot.status}`;
+    const details = document.createElement("time");
+    details.textContent = backendSnapshot.details;
+    row.appendChild(title);
+    row.appendChild(details);
+    ui.backendStatus.appendChild(row);
+  }
+
   function renderStats() {
     const wins = state.closedPositions.filter((trade) => trade.pnl > 0).length;
     const netPnl = state.closedPositions.reduce((total, trade) => total + trade.pnl, 0);
@@ -482,6 +605,7 @@
     renderStats();
     renderTickers();
     renderConnectors();
+    renderBackendStatus();
     renderLogs();
   }
 
@@ -494,6 +618,17 @@
   });
 
   ui.toggleBot.addEventListener("click", toggleBot);
+  ui.checkBackend.addEventListener("click", function () {
+    void checkBackend();
+  });
+  ui.submitSignal.addEventListener("click", function () {
+    void submitSampleTrade();
+  });
+
+  const rememberedBackendUrl = loadBackendUrl();
+  if (rememberedBackendUrl) {
+    ui.backendUrl.value = rememberedBackendUrl;
+  }
 
   if (shouldAutoStart && !state.running) {
     toggleBot();
@@ -502,4 +637,5 @@
   }
 
   render();
+  void checkBackend();
 })();

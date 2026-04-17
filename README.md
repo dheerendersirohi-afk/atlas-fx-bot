@@ -62,6 +62,7 @@ The Python code remains available for later work on:
 - connector registry definitions in `src/forex_bot/connectors`
 - an OANDA REST-v20 client in `src/forex_bot/connectors/oanda.py`
 - MetaTrader indicator bridge helpers in `src/forex_bot/connectors/metatrader.py`
+- a backend service layer in `backend/`
 
 ## Live connector config
 
@@ -97,6 +98,28 @@ python -m forex_bot.mt_cli --credentials config.live-connectors.example.json dem
 The MT4/MT5 helper generates MQL probe scripts for built-in indicators such as `iMA`, `iRSI`, `iATR`, and `iMACD`, plus `iCustom` for custom indicators. MT5 uses indicator handles and `CopyBuffer`, while MT4 indicator calls return values directly.
 
 The `demo-ea` command generates an MT5 Expert Advisor scaffold with explicit spread, stop-loss, take-profit, and daily-loss guards. The example config now defaults MT5 to demo mode with `allow_live_trading` set to `false`.
+
+## Backend Service
+
+The project now includes a lightweight backend service in `backend/` that connects:
+
+- frontend dashboard requests
+- rule-based or LLM signal generation
+- risk checks
+- trade approval flow
+- MT5 bridge execution
+
+Suggested startup command once Python is available:
+
+```powershell
+python -m backend.server
+```
+
+Example backend environment file:
+
+```text
+backend/.env.example
+```
 
 ## Next upgrade path
 

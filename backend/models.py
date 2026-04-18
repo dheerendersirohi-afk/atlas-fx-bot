@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields
 from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
@@ -25,6 +25,12 @@ class MarketSnapshot:
     @property
     def mid_price(self) -> float:
         return (self.bid + self.ask) / 2
+
+    @classmethod
+    def from_payload(cls, payload: dict[str, Any]) -> "MarketSnapshot":
+        allowed = {item.name for item in fields(cls)}
+        filtered = {key: value for key, value in payload.items() if key in allowed}
+        return cls(**filtered)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

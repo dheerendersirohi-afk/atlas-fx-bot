@@ -13,7 +13,7 @@ def _load_dotenv(path: Path) -> None:
         if not line or line.startswith("#") or "=" not in line:
             continue
         key, value = line.split("=", 1)
-        os.environ.setdefault(key.strip(), value.strip())
+        os.environ[key.strip()] = value.strip()
 
 
 def _env_bool(name: str, default: bool) -> bool:
@@ -39,6 +39,7 @@ class AIProviderConfig:
     api_key: str
     model: str
     base_url: str
+    available_models: tuple[str, ...] = ()
 
 
 @dataclass(slots=True)
@@ -51,6 +52,15 @@ class BackendConfig:
     manual_approval: bool
     openai: AIProviderConfig
     gemini: AIProviderConfig
+    sarvam: AIProviderConfig
+
+
+def _env_csv(name: str, default: tuple[str, ...]) -> tuple[str, ...]:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    values = tuple(item.strip() for item in raw.split(",") if item.strip())
+    return values or default
 
 
 def load_backend_config(env_path: str | Path = "backend/.env") -> BackendConfig:
@@ -76,5 +86,12 @@ def load_backend_config(env_path: str | Path = "backend/.env") -> BackendConfig:
                 "GEMINI_BASE_URL",
                 "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
             ),
+        ),
+        sarvam=AIProviderConfig(
+            enabled=_env_bool("SARVAM_ENABLED", False),
+            api_key=os.getenv("SARVAM_API_KEY", ""),
+            model=os.getenv("SARVAM_MODEL", "sarvam-30b"),
+            base_url=os.getenv("SARVAM_BASE_URL", "https://api.sarvam.ai/v1/chat/completions"),
+            available_models=_env_csv("SARVAM_AVAILABLE_MODELS", ("sarvam-30b", "sarvam-105b", "sarvam-m")),
         ),
     )

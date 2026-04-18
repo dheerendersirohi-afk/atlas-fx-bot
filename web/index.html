@@ -4,88 +4,179 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Atlas FX Bot</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <main class="shell">
+    <div class="page-glow page-glow-left"></div>
+    <div class="page-glow page-glow-right"></div>
+
+    <main class="site-shell">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-mark">A</div>
+          <div>
+            <p class="eyebrow">Atlas FX Bot</p>
+            <strong>Broker Bridge Console</strong>
+          </div>
+        </div>
+        <div class="topbar-status">
+          <span class="status-pill" id="botStatus">Paper Bot Offline</span>
+          <span class="mini-badge" id="backendBadge">Backend unknown</span>
+        </div>
+      </header>
+
       <section class="hero">
-        <div>
-          <p class="eyebrow">Forex Automation Console</p>
-          <h1>Atlas FX Bot</h1>
+        <div class="hero-copy">
+          <p class="eyebrow">Cloud-style control layer</p>
+          <h1>Trade routing, platform bridges, and local risk control in one dashboard.</h1>
           <p class="lede">
-            A local-first forex bot dashboard with paper execution, wallet controls,
-            and broker adapter slots for future live integrations.
+            Atlas keeps the frontend simple while the backend manages MT5 bridge state,
+            sample trade approvals, wallet simulation, and platform readiness checks.
           </p>
+
+          <div class="hero-metrics">
+            <article class="hero-metric">
+              <span>Connectors</span>
+              <strong id="connectorCount">0</strong>
+            </article>
+            <article class="hero-metric">
+              <span>Tracked pairs</span>
+              <strong id="pairCount">0</strong>
+            </article>
+            <article class="hero-metric">
+              <span>Pending approvals</span>
+              <strong id="pendingApprovals">0</strong>
+            </article>
+          </div>
         </div>
-        <div class="hero-card">
-          <div class="status-pill" id="botStatus">Paper Bot Offline</div>
-          <p class="muted">Active connector</p>
-          <strong id="connectorName">Universal Paper Bridge</strong>
-          <button class="ghost-button" id="toggleBot" type="button">Start Bot</button>
-        </div>
+
+        <aside class="hero-rail">
+          <div class="hero-rail-card primary">
+            <div class="hero-rail-head">
+              <p class="eyebrow">Execution mode</p>
+              <strong id="connectorName">Universal Paper Bridge</strong>
+            </div>
+            <p class="rail-copy" id="heroStatusNote">
+              Local simulation is ready. Connect the backend to review MT5 bridge state.
+            </p>
+            <button class="primary-button" id="toggleBot" type="button">Start Bot</button>
+          </div>
+
+          <div class="hero-rail-card secondary">
+            <div class="hero-rail-head">
+              <p class="eyebrow">Bridge state</p>
+              <strong id="backendHeadline">Backend not checked</strong>
+            </div>
+            <p class="rail-copy">
+              The backend exposes approval flow, MT5 readiness, and strategy signal APIs at
+              your configured URL.
+            </p>
+          </div>
+        </aside>
       </section>
 
-      <section class="grid">
+      <section class="stat-strip">
+        <article class="stat-tile">
+          <span>Open trades</span>
+          <strong id="openTrades">0</strong>
+        </article>
+        <article class="stat-tile">
+          <span>Closed trades</span>
+          <strong id="closedTrades">0</strong>
+        </article>
+        <article class="stat-tile">
+          <span>Win rate</span>
+          <strong id="winRate">0%</strong>
+        </article>
+        <article class="stat-tile emphasis">
+          <span>Net PnL</span>
+          <strong id="netPnl">$0.00</strong>
+        </article>
+      </section>
+
+      <section class="desk-strip">
+        <article class="desk-card">
+          <span>Desk mode</span>
+          <strong id="deskMode">Simulation desk</strong>
+        </article>
+        <article class="desk-card">
+          <span>Signal engine</span>
+          <strong id="deskEngine">Rules only</strong>
+        </article>
+        <article class="desk-card">
+          <span>Risk route</span>
+          <strong id="deskRisk">Manual approval</strong>
+        </article>
+        <article class="desk-card">
+          <span>MT5 bridge</span>
+          <strong id="deskBridge">Checking...</strong>
+        </article>
+      </section>
+
+      <section class="content-grid">
         <article class="panel wallet-panel">
           <div class="panel-head">
             <div>
-              <p class="eyebrow">Wallet</p>
-              <h2>Deposit / Withdrawal</h2>
+              <p class="eyebrow">Desk cash ledger</p>
+              <h2>Funding and balance control</h2>
             </div>
-            <div class="balance">
-              <span>Balance</span>
+            <div class="balance-display">
+              <span>Available balance</span>
               <strong id="walletBalance">$10,000.00</strong>
             </div>
           </div>
 
-          <label class="field">
-            <span>Amount (USD)</span>
-            <input id="walletAmount" type="number" min="1" step="0.01" value="500" />
-          </label>
+          <div class="wallet-layout">
+            <label class="field">
+              <span>Amount in USD</span>
+              <input id="walletAmount" type="number" min="1" step="0.01" value="500" />
+            </label>
 
-          <div class="action-row">
-            <button class="action-button deposit" id="depositBtn" type="button">Deposit</button>
-            <button class="action-button withdraw" id="withdrawBtn" type="button">Withdrawal</button>
+            <div class="action-row">
+              <button class="primary-button deposit" id="depositBtn" type="button">Deposit</button>
+              <button class="primary-button withdraw" id="withdrawBtn" type="button">Withdrawal</button>
+            </div>
           </div>
 
           <p class="caption">
-            Live cash movement is not connected by default. These actions update the local
-            wallet simulator until a specific broker API is approved and integrated.
+            Atlas uses these controls as a local trading ledger for sizing, risk testing, and approval flow.
+            Live deposits and withdrawals stay on the broker side until one specific funding integration is
+            approved and connected.
           </p>
         </article>
 
         <article class="panel">
           <div class="panel-head">
             <div>
-              <p class="eyebrow">Performance</p>
-              <h2>Session Metrics</h2>
+              <p class="eyebrow">Bridge control</p>
+              <h2>Backend and approvals</h2>
             </div>
           </div>
-          <div class="stats">
-            <div class="stat">
-              <span>Open Trades</span>
-              <strong id="openTrades">0</strong>
-            </div>
-            <div class="stat">
-              <span>Closed Trades</span>
-              <strong id="closedTrades">0</strong>
-            </div>
-            <div class="stat">
-              <span>Win Rate</span>
-              <strong id="winRate">0%</strong>
-            </div>
-            <div class="stat">
-              <span>Net PnL</span>
-              <strong id="netPnl">$0.00</strong>
-            </div>
+
+          <label class="field">
+            <span>Backend URL</span>
+            <input id="backendUrl" type="text" value="http://127.0.0.1:8787" />
+          </label>
+
+          <div class="action-row compact">
+            <button class="secondary-button" id="checkBackend" type="button">Check Backend</button>
+            <button class="secondary-button" id="submitSignal" type="button">Send Sample Trade</button>
           </div>
+
+          <div class="backend-list" id="backendStatus"></div>
         </article>
 
         <article class="panel">
           <div class="panel-head">
             <div>
-              <p class="eyebrow">Market Feed</p>
-              <h2>Tracked Pairs</h2>
+              <p class="eyebrow">Market radar</p>
+              <h2>Tracked forex pairs</h2>
             </div>
           </div>
           <div class="ticker-list" id="tickerList"></div>
@@ -94,8 +185,41 @@
         <article class="panel">
           <div class="panel-head">
             <div>
-              <p class="eyebrow">Integrations</p>
-              <h2>Forex Platforms</h2>
+              <p class="eyebrow">Chart listener</p>
+              <h2>15-day market and trade history</h2>
+            </div>
+          </div>
+
+          <div class="listener-controls">
+            <label class="field">
+              <span>Listener scope</span>
+              <select id="chartMode">
+                <option value="all">All tracked markets</option>
+                <option value="pair">Particular symbol</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>Symbol</span>
+              <select id="chartPair"></select>
+            </label>
+          </div>
+
+          <div class="action-row compact">
+            <button class="secondary-button" id="analyzeChart" type="button">Analyze Chart</button>
+          </div>
+
+          <div class="chart-surface" id="chartCanvas" aria-live="polite"></div>
+          <div class="chart-summary" id="chartSummary">Loading chart listener...</div>
+          <div class="chart-meta" id="chartMeta">15-day listener is preparing market history.</div>
+          <div class="chart-meta" id="chartDecision">Run chart analysis to get the current buy, sell, or hold call.</div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Platform matrix</p>
+              <h2>Integration-ready connectors</h2>
             </div>
           </div>
           <div class="connector-list" id="connectorList"></div>
@@ -104,33 +228,36 @@
         <article class="panel">
           <div class="panel-head">
             <div>
-              <p class="eyebrow">Backend</p>
-              <h2>Bridge Status</h2>
+              <p class="eyebrow">AI desk</p>
+              <h2>LLM and ML brain stack</h2>
             </div>
           </div>
-          <label class="field">
-            <span>Backend URL</span>
-            <input id="backendUrl" type="text" value="http://127.0.0.1:8787" />
-          </label>
-          <div class="action-row">
-            <button class="ghost-button" id="checkBackend" type="button">Check Backend</button>
-            <button class="ghost-button" id="submitSignal" type="button">Send Sample Trade</button>
-          </div>
-          <div class="log-list" id="backendStatus"></div>
+          <div class="brain-list" id="brainStatus"></div>
         </article>
 
         <article class="panel">
           <div class="panel-head">
             <div>
-              <p class="eyebrow">Execution Log</p>
-              <h2>Recent Activity</h2>
+              <p class="eyebrow">Execution board</p>
+              <h2>Open paper positions</h2>
+            </div>
+          </div>
+          <div class="position-list" id="positionList"></div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Activity stream</p>
+              <h2>Recent system events</h2>
             </div>
           </div>
           <div class="log-list" id="activityLog"></div>
         </article>
       </section>
     </main>
+
     <script src="./connectors.js"></script>
     <script src="./app.js"></script>
   </body>
-  </html>
+</html>

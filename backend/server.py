@@ -7,7 +7,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 from .config import BackendConfig, load_backend_config
-from .llm_adapters import GeminiBrain, OpenAIBrain, RuleBasedBrain
+from .llm_adapters import GeminiBrain, OpenAIBrain, QuantModelBrain, RuleBasedBrain, SarvamBrain
 from .models import MarketSnapshot, PendingTrade
 from .mt5_bridge import MT5Bridge
 from .risk_engine import RiskEngine
@@ -20,17 +20,185 @@ class BackendApp:
         self.store = TradeStore(config.state_file)
         self.risk = RiskEngine()
         self.mt5 = MT5Bridge(config.credentials_path)
-        self.brains = {"rules": RuleBasedBrain()}
+        self.brains = {
+            "rules": RuleBasedBrain(),
+            "quant": QuantModelBrain(),
+        }
+        if config.sarvam.enabled and config.sarvam.api_key:
+            self.brains["sarvam"] = SarvamBrain(config.sarvam)
         if config.openai.enabled and config.openai.api_key:
             self.brains["openai"] = OpenAIBrain(config.openai)
         if config.gemini.enabled and config.gemini.api_key:
             self.brains["gemini"] = GeminiBrain(config.gemini)
 
+    def _select_auto_brain(self, snapshot: MarketSnapshot) -> tuple[str, str]:
+        has_ema = snapshot.ema_fast is not None and snapshot.ema_slow is not None
+        has_rsi = snapshot.rsi is not None
+
+        if "sarvam" in self.brains and has_ema and has_rsi and snapshot.spread_points <= 25:
+            return "sarvam", "Auto selector chose Sarvam because EMA and RSI features are both available with acceptable spread."
+
+        if "gemini" in self.brains and has_rsi and snapshot.spread_points <= 35:
+            return "gemini", "Auto selector chose Gemini because RSI context is available and spread is within the LLM threshold."
+
+        if "quant" in self.brains and has_ema:
+            return "quant", "Auto selector chose the local quant model because EMA features are available."
+
+        return "rules", "Auto selector fell back to deterministic rules because richer model inputs were not available."
+
+    def _auto_brain_candidates(self, snapshot: MarketSnapshot) -> list[tuple[str, str]]:
+        selected_name, selection_reason = self._select_auto_brain(snapshot)
+        candidates: list[tuple[str, str]] = [(selected_name, selection_reason)]
+
+        if selected_name == "sarvam":
+            if "gemini" in self.brains and snapshot.rsi is not None and snapshot.spread_points <= 35:
+                candidates.append(("gemini", "Sarvam was unavailable, so Gemini is the next LLM fallback for RSI-aware snapshots."))
+            if "quant" in self.brains and snapshot.ema_fast is not None and snapshot.ema_slow is not None:
+                candidates.append(("quant", "LLM providers were unavailable, so the local quant model is taking over with EMA features."))
+        elif selected_name == "gemini":
+            if "quant" in self.brains and snapshot.ema_fast is not None and snapshot.ema_slow is not None:
+                candidates.append(("quant", "Gemini was unavailable, so the local quant model is taking over with EMA features."))
+
+        if "rules" in self.brains and all(name != "rules" for name, _ in candidates):
+            candidates.append(("rules", "External and statistical brains were unavailable, so deterministic rules are being used as the final fallback."))
+
+        return candidates
+
+    def _resolve_brain(self, snapshot: MarketSnapshot, provider: str | None) -> tuple[str, Any, str]:
+        requested = (provider or self.config.default_brain or "rules").strip().lower()
+        if requested == "auto":
+            selected_name, selection_reason = self._select_auto_brain(snapshot)
+            return selected_name, self.brains[selected_name], selection_reason
+
+        if requested in self.brains:
+            return requested, self.brains[requested], f"Explicit brain selection: {requested}."
+
+        return "rules", self.brains["rules"], f"Requested brain '{requested}' is unavailable, so rules were used."
+
+    def brain_status(self) -> dict[str, Any]:
+        llm_available = []
+        if self.config.sarvam.enabled and self.config.sarvam.api_key:
+            llm_available.append(
+                {
+                    "name": "sarvam",
+                    "type": "llm",
+                    "active": "sarvam" in self.brains,
+                    "model": self.config.sarvam.model,
+                    "supported_models": list(self.config.sarvam.available_models),
+                }
+            )
+        else:
+            llm_available.append(
+                {
+                    "name": "sarvam",
+                    "type": "llm",
+                    "active": False,
+                    "model": self.config.sarvam.model,
+                    "supported_models": list(self.config.sarvam.available_models),
+                    "blocker": "Sarvam adapter is ready, but it needs a valid API key to activate.",
+                }
+            )
+
+        if self.config.openai.enabled and self.config.openai.api_key:
+            llm_available.append(
+                {
+                    "name": "openai",
+                    "type": "llm",
+                    "active": "openai" in self.brains,
+                    "model": self.config.openai.model,
+                }
+            )
+        else:
+            llm_available.append(
+                {
+                    "name": "openai",
+                    "type": "llm",
+                    "active": False,
+                    "model": self.config.openai.model,
+                    "blocker": "OpenAI adapter is ready, but it needs a valid API key to activate.",
+                }
+            )
+
+        if self.config.gemini.enabled and self.config.gemini.api_key:
+            llm_available.append(
+                {
+                    "name": "gemini",
+                    "type": "llm",
+                    "active": "gemini" in self.brains,
+                    "model": self.config.gemini.model,
+                }
+            )
+        else:
+            llm_available.append(
+                {
+                    "name": "gemini",
+                    "type": "llm",
+                    "active": False,
+                    "model": self.config.gemini.model,
+                    "blocker": "Gemini adapter is ready, but it needs a valid API key to activate.",
+                }
+            )
+
+        return {
+            "default_brain": self.config.default_brain,
+            "active_brains": sorted(self.brains.keys()),
+            "auto_selector": {
+                "enabled": self.config.default_brain == "auto",
+                "priority": ["sarvam", "gemini", "quant", "rules"],
+                "policy": "Sarvam for rich EMA+RSI snapshots, Gemini for RSI-led snapshots, quant for EMA-led snapshots, rules as fallback.",
+            },
+            "rules_engine": {
+                "name": "rules",
+                "type": "deterministic",
+                "active": True,
+                "signals": ["ema_crossover", "rsi_extremes"],
+            },
+            "llm_adapters": llm_available,
+            "ml_models": [
+                {
+                    "name": "quant",
+                    "type": "feature_score_model",
+                    "active": True,
+                    "features": ["ema_gap_pct", "rsi", "spread_penalty"],
+                    "note": "Local statistical model available without external API keys.",
+                }
+            ],
+            "ml_enabled": True,
+            "summary": "Rule-based and local quant model engines are active. OpenAI and Gemini adapters are wired and can activate once API keys are configured.",
+        }
+
     def evaluate_signal(self, snapshot_payload: dict[str, Any], provider: str | None = None) -> dict[str, Any]:
-        brain_name = provider or self.config.default_brain
-        brain = self.brains.get(brain_name, self.brains["rules"])
-        snapshot = MarketSnapshot(**snapshot_payload)
-        signal = brain.evaluate(snapshot)
+        snapshot = MarketSnapshot.from_payload(snapshot_payload)
+        requested = (provider or self.config.default_brain or "rules").strip().lower()
+        fallback_events: list[dict[str, str]] = []
+
+        if requested == "auto":
+            signal = None
+            brain_name = "rules"
+            selection_reason = "Auto selector fell back to deterministic rules because richer model inputs were not available."
+            for candidate_name, candidate_reason in self._auto_brain_candidates(snapshot):
+                try:
+                    signal = self.brains[candidate_name].evaluate(snapshot)
+                    brain_name = candidate_name
+                    selection_reason = candidate_reason
+                    break
+                except Exception as exc:
+                    fallback_events.append({"brain": candidate_name, "error": str(exc)})
+
+            if signal is None:
+                raise RuntimeError("No trading brain was able to evaluate the current snapshot.")
+        else:
+            brain_name, brain, selection_reason = self._resolve_brain(snapshot, provider)
+            try:
+                signal = brain.evaluate(snapshot)
+            except Exception as exc:
+                if brain_name == "rules":
+                    raise
+                fallback_events.append({"brain": brain_name, "error": str(exc)})
+                brain_name = "rules"
+                selection_reason = f"{selection_reason} The requested brain failed, so deterministic rules were used instead."
+                signal = self.brains["rules"].evaluate(snapshot)
+
         state = self.store.get_status()
         assessment = self.risk.assess(
             signal,
@@ -41,6 +209,9 @@ class BackendApp:
         )
         return {
             "snapshot": snapshot.to_dict(),
+            "selected_brain": brain_name,
+            "selection_reason": selection_reason,
+            "fallback_events": fallback_events,
             "signal": signal.to_dict(),
             "risk": assessment.to_dict(),
         }
@@ -49,7 +220,7 @@ class BackendApp:
         evaluated = self.evaluate_signal(snapshot_payload, provider)
         signal = evaluated["signal"]
         risk = evaluated["risk"]
-        snapshot = MarketSnapshot(**evaluated["snapshot"])
+        snapshot = MarketSnapshot.from_payload(evaluated["snapshot"])
 
         if not risk["approved"]:
             return {"status": "rejected", "evaluated": evaluated}
@@ -93,6 +264,7 @@ class BackendApp:
             "manual_approval": self.config.manual_approval,
             "default_brain": self.config.default_brain,
             "brains": sorted(self.brains.keys()),
+            "brain_system": self.brain_status(),
             "mt5": self.mt5.status(),
             "store": store_status,
         }

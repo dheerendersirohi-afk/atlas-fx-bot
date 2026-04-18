@@ -18,18 +18,40 @@ class MT5Bridge:
         raw = json.loads(self.credentials_path.read_text(encoding="utf-8"))
         return raw["connectors"]["metatrader5"]
 
+    @staticmethod
+    def _has_real_credentials(connector: dict[str, Any]) -> bool:
+        login = int(connector.get("login", 0) or 0)
+        password = str(connector.get("password", "")).strip()
+        server = str(connector.get("server", "")).strip()
+        placeholder_tokens = {
+            "",
+            "YOUR_MT5_PASSWORD",
+            "YOUR_BROKER_SERVER",
+            "YOUR_MT4_PASSWORD",
+            "YOUR_MT4_BROKER_SERVER",
+        }
+        return login > 0 and password not in placeholder_tokens and server not in placeholder_tokens
+
     def status(self) -> dict[str, Any]:
         connector = self._read_connector()
         terminal_path = str(connector.get("terminal_path", ""))
+        blockers: list[str] = []
+        if not Path(terminal_path).exists():
+            blockers.append("MT5 terminal path does not exist.")
+        if mt5 is None:
+            blockers.append("MetaTrader5 Python package is not installed.")
+        if not self._has_real_credentials(connector):
+            blockers.append("MT5 broker login, password, or server is still missing.")
         return {
             "integration_enabled": bool(connector.get("integration_enabled", False)),
             "mode": connector.get("mode", "demo"),
             "terminal_path": terminal_path,
             "terminal_exists": Path(terminal_path).exists(),
             "package_available": mt5 is not None,
-            "credentials_ready": bool(connector.get("credentials_ready", False)),
+            "credentials_ready": self._has_real_credentials(connector),
             "server": connector.get("server", ""),
             "login": connector.get("login", 0),
+            "blockers": blockers,
         }
 
     def execute_trade(self, trade: dict[str, Any]) -> dict[str, Any]:
@@ -42,6 +64,11 @@ class MT5Bridge:
             return {
                 "status": "ready_but_unavailable",
                 "reason": "MetaTrader5 Python package is not installed in this environment.",
+            }
+        if not status["credentials_ready"]:
+            return {
+                "status": "blocked",
+                "reason": "MT5 broker login, password, or server is still missing in the connector config.",
             }
 
         connector = self._read_connector()

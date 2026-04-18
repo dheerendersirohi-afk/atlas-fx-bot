@@ -1,14 +1,23 @@
 from __future__ import annotations
 
+import shutil
+import sys
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from tempfile import TemporaryDirectory
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+SRC_ROOT = PROJECT_ROOT / "src"
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
 
 from forex_bot.config import BotConfig, RiskConfig, StrategyConfig
 from forex_bot.data import load_candles_csv
 from forex_bot.engine import TradingEngine
 from forex_bot.models import Candle
+
+TEST_TMP_ROOT = PROJECT_ROOT / ".tmp_tests"
+TEST_TMP_ROOT.mkdir(exist_ok=True)
 
 
 def make_config() -> BotConfig:
@@ -48,6 +57,14 @@ def make_candle(index: int, close: float, high: float | None = None, low: float 
 
 
 class TradingBotTests(unittest.TestCase):
+    def make_temp_path(self, name: str) -> Path:
+        path = TEST_TMP_ROOT / name
+        if path.exists():
+            shutil.rmtree(path, ignore_errors=True)
+        path.mkdir(parents=True, exist_ok=True)
+        self.addCleanup(lambda: shutil.rmtree(path, ignore_errors=True))
+        return path
+
     def test_config_validation_rejects_invalid_strategy_periods(self) -> None:
         with self.assertRaises(ValueError):
             BotConfig(
@@ -65,12 +82,13 @@ class TradingBotTests(unittest.TestCase):
     def test_engine_opens_and_closes_trade(self) -> None:
         engine = TradingEngine(make_config())
         candles = [
-            make_candle(1, 1.1000),
-            make_candle(2, 1.0995),
-            make_candle(3, 1.0990),
-            make_candle(4, 1.1010),
-            make_candle(5, 1.1030),
-            make_candle(6, 1.1160, high=1.1175),
+            make_candle(1, 1.1050),
+            make_candle(2, 1.1030),
+            make_candle(3, 1.1010),
+            make_candle(4, 1.1000),
+            make_candle(5, 1.1025),
+            make_candle(6, 1.1080),
+            make_candle(7, 1.1220, high=1.1240, low=1.1200),
         ]
 
         for candle in candles:
@@ -102,19 +120,19 @@ class TradingBotTests(unittest.TestCase):
         self.assertFalse(allowed)
 
     def test_csv_loader_accepts_blank_optional_fields(self) -> None:
-        with TemporaryDirectory() as temp_dir:
-            csv_path = Path(temp_dir) / "market.csv"
-            csv_path.write_text(
-                "\n".join(
-                    [
-                        "timestamp,pair,open,high,low,close,volume,spread",
-                        "2026-04-17T09:00:00+00:00,EUR/USD,1.0810,1.0822,1.0806,1.0818,,",
-                    ]
-                ),
-                encoding="utf-8",
-            )
+        temp_dir = self.make_temp_path("bot_csv_loader")
+        csv_path = temp_dir / "market.csv"
+        csv_path.write_text(
+            "\n".join(
+                [
+                    "timestamp,pair,open,high,low,close,volume,spread",
+                    "2026-04-17T09:00:00+00:00,EUR/USD,1.0810,1.0822,1.0806,1.0818,,",
+                ]
+            ),
+            encoding="utf-8",
+        )
 
-            candles = load_candles_csv(csv_path)
+        candles = load_candles_csv(csv_path)
 
         self.assertEqual(len(candles), 1)
         self.assertEqual(candles[0].volume, 0.0)
